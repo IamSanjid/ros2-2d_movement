@@ -1,0 +1,34 @@
+# Ignore build artifacts from colcon
+build/
+install/
+log/
+
+# ROS 2 generated files
+# (include message/service/action build output, etc.)
+**/build/
+**/install/
+**/log/
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Editor / IDE directories
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS / shell / temp files
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# If using CMake / C++ builds
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile

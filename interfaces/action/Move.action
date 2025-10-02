@@ -1,0 +1,8 @@
+Point from_pos
+int8 direction
+int32 step
+---
+Point new_pos
+---
+Point new_pos
+int32 step_left

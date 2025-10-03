@@ -8,15 +8,15 @@ from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rcl_interfaces.srv import SetParameters
 from rclpy.node import Node
-from interfaces.msg import CameraView as ICameraView
+from interfaces.msg import CameraView
 
-from commander.camera import Viewer
+from commander.bot import Viewer
 
 BASE_CELL_SIZE = 10
 VIEW_STEP_SCALE = 10
 ZOOM_FACTOR = 1.2
 
-class CameraView:
+class ViewCamera:
     def __init__(self, screen_size, cell_size=BASE_CELL_SIZE, zoom=1.0, min_zoom=0.1, max_zoom=10.0):
         self.screen_width, self.screen_height = screen_size
         self.cell_size = cell_size
@@ -65,7 +65,7 @@ class Direction(IntEnum):
 
 class View:
     def __init__(self):
-        self.node = Node("Grid", namespace="Viewer")
+        self.node = Node("View", namespace="Commander")
         self.node.declare_parameter('width', 1000)
         self.node.declare_parameter('height', 1000)
         self.node.declare_parameter('step', 3)
@@ -74,7 +74,7 @@ class View:
         self.viewer.props_update_callback = self.on_props_update
         self.viewer.camera_view_bumps_callback = self.on_view_bumps
 
-        self.update_params()
+        self.update_attrs()
 
         self.post_param_callback = self.node.add_post_set_parameters_callback(self.on_post_param_set)
 
@@ -98,18 +98,22 @@ class View:
         return (self.viewer.props['pos_x'], self.viewer.props['pos_y'])
     
     def on_post_param_set(self, params):
-        self.update_params()
+        self.update_attrs()
         params
 
-    def update_params(self):
+    def update_attrs(self):
         self.width = self.node.get_parameter('width').get_parameter_value().integer_value
         self.height = self.node.get_parameter('height').get_parameter_value().integer_value
         self.step = self.node.get_parameter('step').get_parameter_value().integer_value
 
-        self.camera_view = CameraView((self.width, self.height), cell_size=BASE_CELL_SIZE, zoom=3.0)
+        if hasattr(self, 'view_camera'):
+            self.view_camera.screen_width = self.width
+            self.view_camera.screen_height = self.height
+        else:
+            self.view_camera = ViewCamera((self.width, self.height), cell_size=BASE_CELL_SIZE, zoom=3.0)
         self.screen = pygame.display.set_mode((self.width, self.height))
 
-    def on_view_bumps(self, data: ICameraView):
+    def on_view_bumps(self, data: CameraView):
         for (x, y, bump) in zip(data.x_cords, data.y_cords, data.bumps):
             if (x, y, bump) in self.coords: continue
             self.node.get_logger().info('{}, {}: {}'.format(x, y, bump))
@@ -149,9 +153,9 @@ class View:
                 elif ev.key == pygame.K_x:
                     self.viewer.cancel_moving()
                 elif ev.key == pygame.K_UP:
-                    self.camera_view.zoom_in(ZOOM_FACTOR)
+                    self.view_camera.zoom_in(ZOOM_FACTOR)
                 elif ev.key == pygame.K_DOWN:
-                    self.camera_view.zoom_out(ZOOM_FACTOR)
+                    self.view_camera.zoom_out(ZOOM_FACTOR)
 
         self.screen.fill(self.bg_color)
         self.draw_grid()
@@ -159,7 +163,7 @@ class View:
         dt
 
     def draw_grid(self):
-        cam = self.camera_view
+        cam = self.view_camera
         cell = cam.cell_size
 
         top_left = cam.screen_to_world((0, 0))
@@ -201,7 +205,7 @@ class View:
         self.draw_pov() # pov circle
 
     def fill_cell(self, cell_indices, color):
-        cam = self.camera_view
+        cam = self.view_camera
         i, j = cell_indices
         cell_world_size = cam.cell_size
 
@@ -222,15 +226,15 @@ class View:
     
     def draw_pov(self):
         i, j = self.get_bot_pos()
-        cell_size = self.camera_view.cell_size
+        cell_size = self.view_camera.cell_size
 
         world_center_x = i * cell_size + cell_size / 2
         world_center_y = j * cell_size + cell_size / 2
         world_center = (world_center_x, world_center_y)
 
-        screen_center = self.camera_view.world_to_screen(world_center)
+        screen_center = self.view_camera.world_to_screen(world_center)
 
-        radius = self.get_camera_pov_radius() * self.camera_view.zoom
+        radius = self.get_camera_pov_radius() * self.view_camera.zoom
         radius = int(radius)
         center_px = (int(screen_center.x), int(screen_center.y))
 
@@ -238,10 +242,10 @@ class View:
         pygame.draw.circle(self.screen, (255, 0, 0), center_px, radius, 2)
 
     def center_on(self, i, j):
-        cell_size = self.camera_view.cell_size
+        cell_size = self.view_camera.cell_size
         world_x = i * cell_size + cell_size / 2
         world_y = j * cell_size + cell_size / 2
-        self.camera_view.set_pos((world_x, world_y))
+        self.view_camera.set_pos((world_x, world_y))
 
     def move(self, dir: Direction):
         self.viewer.move_bot(int(dir), self.step)
